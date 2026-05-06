@@ -124,3 +124,49 @@ def test_upsert_and_delete_policy(client):
     assert "deny_confidential_to_public" in client.get_policies()
     client.apply(_delete_policy("deny_confidential_to_public"))
     assert "deny_confidential_to_public" not in client.get_policies()
+
+
+def test_grant_with_empty_permissions_is_a_noop(client):
+    r = ResourceRef("prod", "finance", "trades", None)
+    p = Principal(PrincipalKind.IDP_GROUP, "data-analysts")
+    client.apply(_grant(r, p, ()))
+    assert client.get_grants(r) == {}
+
+
+def test_revoke_of_nonexistent_grant_is_silent(client):
+    r = ResourceRef("prod", "finance", "trades", None)
+    p = Principal(PrincipalKind.IDP_GROUP, "ghosts")
+    client.apply(_revoke(r, p, ("SELECT",)))  # must not raise
+    assert client.get_grants(r) == {}
+
+
+def test_unset_of_nonexistent_tag_is_silent(client):
+    r = ResourceRef("prod", "finance", "trades", None)
+    client.apply(_unset_tag(r, "nonexistent"))  # must not raise
+    assert client.get_tags(r) == {}
+
+
+def test_revoke_idempotent(client):
+    r = ResourceRef("prod", "finance", "trades", None)
+    p = Principal(PrincipalKind.IDP_GROUP, "data-analysts")
+    client.apply(_grant(r, p, ("SELECT", "DESCRIBE")))
+    op = _revoke(r, p, ("SELECT",))
+    client.apply(op)
+    client.apply(op)  # second revoke must be a no-op
+    assert client.get_grants(r) == {p.identifier: {"DESCRIBE"}}
+
+
+def test_upsert_policy_idempotent(client):
+    op = _upsert_policy("policy_a")
+    client.apply(op)
+    client.apply(op)  # second upsert must not duplicate (set semantics)
+    assert client.get_policies() == {"policy_a"}
+
+
+def test_column_level_resource_keys_separately(client):
+    table = ResourceRef("prod", "finance", "trades", None)
+    column = ResourceRef("prod", "finance", "trades", "ssn")
+    client.apply(_set_tag(table, "data_classification", "public"))
+    client.apply(_set_tag(column, "data_classification", "confidential"))
+    assert client.get_tags(table) == {"data_classification": "public"}
+    assert client.get_tags(column) == {"data_classification": "confidential"}

@@ -51,6 +51,8 @@ class InMemoryUCClient:
 
     def _grant(self, op: SyncOp) -> None:
         assert op.resource is not None and op.principal is not None
+        if not op.permissions:
+            return
         bucket = self._grants.setdefault(op.resource.qualified_name, {})
         perms = bucket.setdefault(op.principal.identifier, set())
         perms.update(op.permissions)
