@@ -1,7 +1,7 @@
 """Domain models for the LF -> UC entitlements sync engine."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -52,7 +52,7 @@ class LFTagAssignment:
     value: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class LFEvent:
     kind: LFEventKind
     event_id: str
@@ -72,7 +72,7 @@ class SyncOpKind(str, Enum):
     REVOKE = "revoke"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SyncOp:
     kind: SyncOpKind
     resource: Optional[ResourceRef]
@@ -83,7 +83,7 @@ class SyncOp:
     policy_name: Optional[str]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class AuditRow:
     ts: datetime
     source_event_id: str
