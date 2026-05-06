@@ -115,7 +115,7 @@ class SyncOrchestrator:
             AuditRow(
                 ts=datetime.now(timezone.utc),
                 source_event_id=ev.event_id,
-                op_kind=op.kind if op is not None else SyncOpKind.GRANT,  # placeholder for non-op rows
+                op_kind=op.kind if op is not None else SyncOpKind.NONE,
                 resource_qualified_name=(
                     op.resource.qualified_name
                     if op is not None and op.resource is not None

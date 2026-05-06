@@ -70,6 +70,7 @@ class SyncOpKind(str, Enum):
     DELETE_POLICY = "delete_policy"
     GRANT = "grant"
     REVOKE = "revoke"
+    NONE = "none"
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -121,3 +121,10 @@ def test_unsupported_permissions_audited_as_unsupported(orchestrator):
     orchestrator.handle(ev)
     rows = orchestrator.audit.rows
     assert any(r.status == "unsupported" for r in rows)
+
+
+def test_unresolved_iam_role_audit_row_uses_none_op_kind(orchestrator):
+    """Non-op audit rows must use SyncOpKind.NONE so they don't masquerade as grants."""
+    p = Principal(PrincipalKind.IAM_ROLE, "arn:aws:iam::123456789012:role/UnknownRole")
+    orchestrator.handle(_grant_ev(p))
+    assert orchestrator.audit.rows[0].op_kind is SyncOpKind.NONE
