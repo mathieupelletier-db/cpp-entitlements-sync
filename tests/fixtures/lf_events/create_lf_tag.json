@@ -1,0 +1,10 @@
+{
+  "eventID": "ct-createtag-1",
+  "eventTime": "2026-05-06T12:20:00Z",
+  "eventSource": "lakeformation.amazonaws.com",
+  "eventName": "CreateLFTag",
+  "requestParameters": {
+    "tagKey": "classification",
+    "tagValues": ["public", "internal", "confidential"]
+  }
+}

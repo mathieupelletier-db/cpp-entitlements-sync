@@ -1,0 +1,9 @@
+{
+  "eventID": "ct-deletetag-1",
+  "eventTime": "2026-05-06T12:25:00Z",
+  "eventSource": "lakeformation.amazonaws.com",
+  "eventName": "DeleteLFTag",
+  "requestParameters": {
+    "tagKey": "classification"
+  }
+}
