@@ -1,0 +1,11 @@
+{
+  "iam_role_overrides": {
+    "arn:aws:iam::123456789012:role/AnalystRole": {
+      "kind": "idp_group",
+      "identifier": "data-analysts"
+    }
+  },
+  "group_renames": {
+    "data-analysts-old": "data-analysts"
+  }
+}
