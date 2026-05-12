@@ -1,33 +1,43 @@
 """Scheduled reconciler — diffs target UC state against current UC state.
 
-The reconciler is the safety net for the event-driven sync path. It pulls a desired-state
-snapshot (computed externally from Lake Formation), reads the current UC state via the
-UCClient inspection helpers, emits corrective SyncOps, and audits each correction with
-a notes marker (`reconciler:missing` or `reconciler:drift`).
-
-For Plan 1 scope, the target snapshot is a dataclass passed in by the caller. Plan 3
-will add the LF-side puller that constructs it.
+In the reconciler-only design this is the sole sync mechanism. It receives a
+desired-state snapshot built from Lake Formation (see ``target_builder.py``),
+reads the current UC state through the ``UCClient`` interface, emits corrective
+``SyncOp``s, and audits each correction with a notes marker
+(``reconciler:missing`` or ``reconciler:drift``).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from .audit import AuditSink
 from .models import AuditRow, Principal, PrincipalKind, ResourceRef, SyncOp, SyncOpKind
 from .translators.tag import MANAGED_BY_KEY, MANAGED_BY_VALUE
-from .uc_client import InMemoryUCClient
+from .uc_client import UCClient
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
 class TargetUCState:
     """Desired UC state, post-translation. Tags do NOT include the managed_by marker —
     the reconciler asserts that automatically on every managed resource. Grants principals
-    are post-identity-resolution (UC identifiers)."""
+    are post-identity-resolution (UC identifiers).
+
+    ``additive_grants`` are grants that must exist for the managed grants to work
+    (e.g., USE CATALOG on the catalog for a principal that holds SELECT on a
+    table). They are applied if missing but NEVER reverted — the reconciler does
+    not claim ownership of the parent resource. Without this distinction, a
+    catalog-level reconciler would steamroll every other principal's USE CATALOG
+    grant on the same catalog.
+    """
     tags: dict[ResourceRef, dict[str, str]]
     grants: dict[ResourceRef, dict[str, set[str]]]
     policies: set[str]
     managed_resources: set[ResourceRef]
+    additive_grants: dict[ResourceRef, dict[str, set[str]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -40,11 +50,11 @@ class ReconcileReport:
 class Reconciler:
     """Diff target UC state vs current UC state and emit corrective ops.
 
-    Currently relies on InMemoryUCClient's inspection helpers. The Plan 2 SDK adapter
-    will need an equivalent read interface (e.g., list_tags_for(resource), list_grants_for, list_policies).
+    Uses the ``UCClient`` Protocol — works with ``InMemoryUCClient`` in tests
+    and with ``DatabricksUCClient`` in production.
     """
 
-    def __init__(self, *, uc: InMemoryUCClient, audit: AuditSink) -> None:
+    def __init__(self, *, uc: UCClient, audit: AuditSink) -> None:
         self.uc = uc
         self.audit = audit
 
@@ -52,8 +62,37 @@ class Reconciler:
         report = ReconcileReport()
         self._reconcile_tags(target, report)
         self._reconcile_grants(target, report)
+        self._reconcile_additive_grants(target, report)
         self._reconcile_policies(target, report)
         return report
+
+    def _reconcile_additive_grants(
+        self, target: TargetUCState, report: ReconcileReport
+    ) -> None:
+        """Apply ``target.additive_grants`` as missing-only ops.
+
+        These are parent-resource grants (USE CATALOG / USE SCHEMA) synthesized
+        to satisfy the UC privilege chain. They are NEVER reverted — the
+        reconciler does not claim ownership of the parent resource. Only the
+        delta against current state is issued as GRANTs.
+        """
+        for r, desired_grants in target.additive_grants.items():
+            if not desired_grants:
+                continue
+            actual = self.uc.get_grants(r)
+            for principal_id, desired_perms in desired_grants.items():
+                actual_perms = actual.get(principal_id, set())
+                missing_perms = desired_perms - actual_perms
+                if missing_perms:
+                    op = SyncOp(
+                        kind=SyncOpKind.GRANT, resource=r,
+                        principal=Principal(PrincipalKind.IDP_GROUP, principal_id),
+                        permissions=tuple(sorted(missing_perms)),
+                        tag_key=None, tag_value=None, policy_name=None,
+                    )
+                    self._apply_correction(op, "reconciler:missing-additive")
+                    report.missing_ops += 1
+                    report.audit_rows_written += 1
 
     def _reconcile_tags(self, target: TargetUCState, report: ReconcileReport) -> None:
         # For each managed resource, compare desired tags + managed_by marker against actual
@@ -139,15 +178,42 @@ class Reconciler:
             report.audit_rows_written += 1
 
     def _apply_correction(self, op: SyncOp, marker: str) -> None:
-        self.uc.apply(op)
+        """Apply a corrective op and write an audit row.
+
+        Errors from ``uc.apply`` are caught, audited with ``status=error``, and
+        do NOT abort the run. The reconciler is best-effort: one bad op (e.g.,
+        a tag value that violates a UC tag policy) must not block all other
+        corrections. The error is captured in the audit row for triage.
+        """
+        resource_name = op.resource.qualified_name if op.resource is not None else "<n/a>"
+        principal_name = op.principal.identifier if op.principal is not None else "<n/a>"
+        op_summary = f"{op.kind.value:14s} on {resource_name} for {principal_name}"
+        try:
+            self.uc.apply(op)
+            status, error_msg = "ok", None
+            log.info("[%s] %s [%s]", status, op_summary, marker)
+        except Exception as e:  # noqa: BLE001 — intentional broad catch; full error preserved in audit
+            status = "error"
+            error_msg = str(e)
+            # Errors get a single-line summary at WARNING level; the full SQL/
+            # error string lives in the audit row.
+            log.warning("[%s] %s [%s] — %s", status, op_summary, marker, _terse_error(error_msg))
         self.audit.write(AuditRow(
             ts=datetime.now(timezone.utc),
             source_event_id="<reconciler>",
             op_kind=op.kind,
-            resource_qualified_name=op.resource.qualified_name if op.resource is not None else "<n/a>",
-            principal_identifier=op.principal.identifier if op.principal is not None else "<n/a>",
-            status="ok",
+            resource_qualified_name=resource_name,
+            principal_identifier=principal_name,
+            status=status,
             latency_ms=0,
-            error=None,
+            error=error_msg,
             notes=marker,
         ))
+
+
+def _terse_error(msg: str, limit: int = 140) -> str:
+    """Collapse a multi-line SQL/SDK error to a one-line summary for console output."""
+    first_line = msg.splitlines()[0] if msg else ""
+    if len(first_line) > limit:
+        first_line = first_line[: limit - 1] + "…"
+    return first_line

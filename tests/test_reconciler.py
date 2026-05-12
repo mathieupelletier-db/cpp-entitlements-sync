@@ -168,3 +168,101 @@ def test_in_sync_state_is_a_noop(fresh_uc, audit):
     report = rec.reconcile(target)
     assert report.missing_ops == 0
     assert report.drift_ops == 0
+
+
+def test_additive_grants_apply_when_missing(fresh_uc, audit):
+    """USE CATALOG on the catalog is granted to the listed principal."""
+    catalog_ref = ResourceRef("cpp_lake", "", None, None)
+    target = TargetUCState(
+        tags={}, grants={}, policies=set(), managed_resources=set(),
+        additive_grants={catalog_ref: {"analysts": {"USE CATALOG"}}},
+    )
+    rec = Reconciler(uc=fresh_uc, audit=audit)
+    report = rec.reconcile(target)
+    assert fresh_uc.get_grants(catalog_ref) == {"analysts": {"USE CATALOG"}}
+    assert any(row.notes == "reconciler:missing-additive" for row in audit.rows)
+    assert report.missing_ops >= 1
+
+
+def test_additive_grants_never_revert_other_principals(fresh_uc, audit):
+    """The critical safety property: other principals' USE CATALOG grants on
+    the same catalog must NOT be touched. The reconciler doesn't own the catalog."""
+    catalog_ref = ResourceRef("cpp_lake", "", None, None)
+    # Pre-populate UC with an unrelated principal's USE CATALOG grant
+    fresh_uc.apply(SyncOp(
+        kind=SyncOpKind.GRANT, resource=catalog_ref,
+        principal=Principal(PrincipalKind.IDP_GROUP, "stranger"),
+        permissions=("USE CATALOG",),
+        tag_key=None, tag_value=None, policy_name=None,
+    ))
+    target = TargetUCState(
+        tags={}, grants={}, policies=set(), managed_resources=set(),
+        additive_grants={catalog_ref: {"analysts": {"USE CATALOG"}}},
+    )
+    rec = Reconciler(uc=fresh_uc, audit=audit)
+    report = rec.reconcile(target)
+
+    grants = fresh_uc.get_grants(catalog_ref)
+    assert grants["stranger"] == {"USE CATALOG"}        # untouched
+    assert grants["analysts"] == {"USE CATALOG"}        # added
+    assert report.drift_ops == 0                          # no revokes were issued
+
+
+def test_additive_grant_already_present_is_noop(fresh_uc, audit):
+    catalog_ref = ResourceRef("cpp_lake", "", None, None)
+    fresh_uc.apply(SyncOp(
+        kind=SyncOpKind.GRANT, resource=catalog_ref,
+        principal=Principal(PrincipalKind.IDP_GROUP, "analysts"),
+        permissions=("USE CATALOG",),
+        tag_key=None, tag_value=None, policy_name=None,
+    ))
+    target = TargetUCState(
+        tags={}, grants={}, policies=set(), managed_resources=set(),
+        additive_grants={catalog_ref: {"analysts": {"USE CATALOG"}}},
+    )
+    rec = Reconciler(uc=fresh_uc, audit=audit)
+    report = rec.reconcile(target)
+    assert report.missing_ops == 0
+    assert report.drift_ops == 0
+
+
+def test_uc_apply_failure_is_caught_and_audited_as_error(audit):
+    """A failing op (e.g., UC tag-policy rejects the value) must NOT abort the
+    run. The error is captured in the audit row; the reconciler continues."""
+    r = _trades()
+    r2 = ResourceRef("123456789012", "finance", "positions", None)
+
+    class FlakyUC:
+        def __init__(self):
+            self.applied = []
+        def apply(self, op):
+            # Fail on the first SET_TAG, succeed on subsequent ops
+            if op.kind is SyncOpKind.SET_TAG and not self.applied:
+                self.applied.append(op)
+                raise RuntimeError("Tag value 'internal' not allowed by tag policy")
+            self.applied.append(op)
+        def get_tags(self, rr):
+            return {}
+        def get_grants(self, rr):
+            return {}
+        def get_policies(self):
+            return set()
+
+    uc = FlakyUC()
+    target = TargetUCState(
+        tags={r: {"data_classification": "internal"}, r2: {"data_classification": "public"}},
+        grants={},
+        policies=set(),
+        managed_resources={r, r2},
+    )
+    rec = Reconciler(uc=uc, audit=audit)
+    report = rec.reconcile(target)
+
+    # First op failed; subsequent ops still happened
+    assert len(uc.applied) >= 3  # 2 tag ops on r (failed first one + managed_by), and ops on r2
+    assert report.audit_rows_written >= 3
+
+    # At least one audit row records the failure with the error string
+    errors = [row for row in audit.rows if row.status == "error"]
+    assert len(errors) == 1
+    assert "not allowed by tag policy" in errors[0].error

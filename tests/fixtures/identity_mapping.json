@@ -5,6 +5,12 @@
       "identifier": "data-analysts"
     }
   },
+  "iam_user_overrides": {
+    "demo/pension-ron": {
+      "kind": "idp_user",
+      "identifier": "ron.smith@cpp.example.com"
+    }
+  },
   "group_renames": {
     "data-analysts-old": "data-analysts"
   }

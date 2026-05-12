@@ -1,0 +1,100 @@
+# Example config for the LF -> UC entitlements sync reconciler.
+#
+# Copy to ``config.yaml`` (or store in Databricks as
+# /Workspace/Repos/<user>/cpp-entitlements-sync/config/config.yaml) and edit
+# the values for the target workspace. The Job runs:
+#
+#   python scripts/run_sync.py --config config/config.yaml
+#
+# All sections are required. See scripts/run_sync.py for validation rules.
+
+# -----------------------------------------------------------------------------
+# AWS / Lake Formation side
+# -----------------------------------------------------------------------------
+aws:
+  # Region where the LF/Glue catalog lives. The Databricks Job's IAM role/
+  # instance profile must be authorized to read LF metadata in this region.
+  region: us-west-2
+
+  # The AWS account ID that owns the Glue catalog. For cross-account setups,
+  # this is the catalog owner's account, not the Job's account.
+  catalog_id: "332745928618"
+
+  # Explicit list of LF resources to keep in sync. The reconciler does NOT
+  # auto-discover — operators control scope here. Each entry is either a
+  # database (table omitted) or a specific table.
+  #
+  # POC scope at CPP per the design spec: 1 catalog, ~20 tables, 3 LF-Tags,
+  # 3 IdP groups. The examples below match the financial-services demo
+  # scenarios from the spec (LOBs: Active Equities, Private Ventures).
+  in_scope:
+
+    # Shared reference tables (entire database under management)
+    - { database: pension_investments_sandbox }  # database-level: applies to all tables within
+
+# -----------------------------------------------------------------------------
+# Databricks / Unity Catalog side
+# -----------------------------------------------------------------------------
+databricks:
+  # Target UC catalog. The reconciler writes tags / grants / policies under
+  # this catalog. Must already exist and be owned by an account-level group
+  # that includes the Job's service principal.
+  catalog: pension_glue_federated
+
+  # SQL warehouse ID for the Statement Execution API. A serverless SQL
+  # warehouse is recommended (cold-start is fast and we only run on schedule).
+  warehouse_id: 586da169697271c9
+
+  # Fully-qualified Delta table the sink writes audit rows to. Auto-created
+  # on first write. Drives the AI/BI Drift Dashboard.
+  audit_table: pension_uc_overlay.sync_audit.events
+
+# -----------------------------------------------------------------------------
+# Identity resolution
+# -----------------------------------------------------------------------------
+identity:
+  # Optional: map LF IdP group names to UC group names when they diverge.
+  # Common when IDC and Databricks SCIM use different display-name policies.
+  group_renames:
+    # LF/IDC name  ->  UC group display name
+    "ANALYSTS_CAD":           "data-analysts-cad"
+    "RISK_CAD":               "risk-analysts-cad"
+    "PRIVATE_VENTURES_PARTNERS": "pv-partners"
+
+  # Optional: explicit mapping for IAM-role-only principals. Default is "skip
+  # and audit identity_unresolved". Override here for service roles that need
+  # a real UC identity. ``kind`` is one of: idp_group, idp_user, iam_role.
+  # Lookup key is everything after ``:role/`` in the IAM ARN.
+  iam_role_overrides:
+    # --- discovered in pension_investments_sandbox via LF list_permissions ---
+
+    # Data analysts group role. Mirror to the UC analyst group.
+    "pension-investments-data-analysts-sandbox":
+      kind: idp_group
+      identifier: data-analysts
+
+    # UC's own Glue federation read role. Mirroring this creates a meaningless
+    # self-grant in UC. Consider removing or leaving unmapped.
+    #"pension-investments-uc-glue-sandbox":
+    #  kind: idp_group
+    #  identifier: uc-glue-federation-svc  # TODO: confirm or remove
+
+  # Optional: explicit mapping for IAM **user** principals (different from
+  # roles). The lookup key is everything after ``:user/`` in the IAM ARN — may
+  # include a path. IAM users have no UC equivalent, so missing entries here
+  # produce ``identity_unresolved`` audit rows and the grant is skipped.
+  iam_user_overrides:
+    "demo/pension-investments-ron-sandbox":
+      kind: idp_user
+      identifier: ron.guerrero@databricks.com
+
+# -----------------------------------------------------------------------------
+# Tag namespace
+# -----------------------------------------------------------------------------
+# LF-Tag key -> UC tag key. Unmapped keys pass through unchanged. The same
+# map drives policy naming: a policy named ``lf_sync__<uc_key>`` is
+# materialized for every LF-Tag key.
+tag_namespace_map:
+  classification: data_classification
+  lob:            business_unit
+  pii:            pii_class

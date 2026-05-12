@@ -1,4 +1,7 @@
-"""UC Client abstraction. The real implementation (Databricks SDK) is in Plan 2."""
+"""UC Client abstraction + in-memory fake.
+
+The real Databricks-SDK-backed implementation lives in ``databricks_uc.py``.
+"""
 from __future__ import annotations
 
 from typing import Protocol
@@ -7,8 +10,21 @@ from .models import ResourceRef, SyncOp, SyncOpKind
 
 
 class UCClient(Protocol):
-    def apply(self, op: SyncOp) -> None:
-        ...
+    """Read+write interface for Unity Catalog state.
+
+    Reads are used by the Reconciler to diff against a target state; writes
+    apply corrective SyncOps. Real implementations must keep the two consistent
+    (a write must be visible to the next read), allowing for the eventual
+    consistency window of the underlying API.
+    """
+
+    def apply(self, op: SyncOp) -> None: ...
+
+    def get_tags(self, r: ResourceRef) -> dict[str, str]: ...
+
+    def get_grants(self, r: ResourceRef) -> dict[str, set[str]]: ...
+
+    def get_policies(self) -> set[str]: ...
 
 
 class InMemoryUCClient:

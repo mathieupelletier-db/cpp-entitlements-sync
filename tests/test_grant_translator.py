@@ -34,10 +34,19 @@ def test_grant_select_translates_to_grant_op():
 
 
 def test_grant_multiple_permissions_grouped_into_one_op():
+    """SELECT + INSERT on a TABLE -> {SELECT, MODIFY} per the level-aware mapping."""
     tr = GrantTranslator()
-    ops, _ = tr.translate(_ev(LFEventKind.GRANT_PERMISSIONS, ("SELECT", "DESCRIBE")))
+    ops, _ = tr.translate(_ev(LFEventKind.GRANT_PERMISSIONS, ("SELECT", "INSERT")))
     assert len(ops) == 1
-    assert set(ops[0].permissions) == {"SELECT", "DESCRIBE"}
+    assert set(ops[0].permissions) == {"SELECT", "MODIFY"}
+
+
+def test_describe_on_table_drops_and_is_reported_unsupported():
+    """DESCRIBE has no table-level UC equivalent; SELECT alone survives."""
+    tr = GrantTranslator()
+    ops, unsupported = tr.translate(_ev(LFEventKind.GRANT_PERMISSIONS, ("SELECT", "DESCRIBE")))
+    assert ops[0].permissions == ("SELECT",)
+    assert unsupported.perms == ("DESCRIBE",)
 
 
 def test_revoke_translates_to_revoke_op():

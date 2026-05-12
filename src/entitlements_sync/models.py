@@ -11,6 +11,7 @@ class PrincipalKind(str, Enum):
     IDP_GROUP = "idp_group"
     IDP_USER = "idp_user"
     IAM_ROLE = "iam_role"
+    IAM_USER = "iam_user"
 
 
 @dataclass(frozen=True)
@@ -28,11 +29,13 @@ class ResourceRef:
 
     @property
     def qualified_name(self) -> str:
-        parts = [self.catalog, self.database]
-        if self.table is not None:
-            parts.append(self.table)
-        if self.column is not None:
-            parts.append(self.column)
+        parts: list[str] = [self.catalog]
+        if self.database:
+            parts.append(self.database)
+            if self.table is not None:
+                parts.append(self.table)
+                if self.column is not None:
+                    parts.append(self.column)
         return ".".join(parts)
 
 

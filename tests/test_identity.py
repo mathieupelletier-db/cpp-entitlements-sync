@@ -46,3 +46,18 @@ def test_iam_role_without_override(resolver: IdentityResolver):
     res = resolver.resolve(p)
     assert res.status == "identity_unresolved"
     assert res.principal is None
+
+
+def test_iam_user_with_override(resolver: IdentityResolver):
+    p = Principal(PrincipalKind.IAM_USER, "demo/pension-ron")
+    res = resolver.resolve(p)
+    assert res.status == "ok"
+    assert res.principal == Principal(PrincipalKind.IDP_USER, "ron.smith@cpp.example.com")
+
+
+def test_iam_user_without_override(resolver: IdentityResolver):
+    p = Principal(PrincipalKind.IAM_USER, "jane.doe")
+    res = resolver.resolve(p)
+    assert res.status == "identity_unresolved"
+    assert res.principal is None
+    assert "IAM user" in res.note
