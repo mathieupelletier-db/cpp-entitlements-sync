@@ -83,6 +83,16 @@ identity:
   # roles). The lookup key is everything after ``:user/`` in the IAM ARN — may
   # include a path. IAM users have no UC equivalent, so missing entries here
   # produce ``identity_unresolved`` audit rows and the grant is skipped.
+  #
+  # NOTE: Federated SAML users (AWS Identity Center / SSO) do NOT need to be
+  # listed here. They arrive in LF as either
+  #   arn:aws:iam::<acct>:saml-provider/<provider>:user/<email>
+  # or
+  #   arn:aws:sts::<acct>:assumed-role/<role>/<email>
+  # and the parser auto-resolves both to the email-matching UC SCIM user. Only
+  # add an entry here for genuine ``arn:aws:iam::<acct>:user/<name>`` IAM users
+  # or for federated NameIDs that are NOT the user's email. See
+  # ``docs/mappings.md`` §2 for the full table of ARN shapes.
   iam_user_overrides:
     "demo/pension-investments-ron-sandbox":
       kind: idp_user

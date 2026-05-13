@@ -29,10 +29,41 @@ PrincipalParser = Callable[[str], Principal]
 def default_principal_parser(identifier: str) -> Principal:
     """Heuristic mapping from LF ``DataLakePrincipalIdentifier`` to ``Principal``.
 
-    Order matters; the first matching rule wins. IAM users have no direct UC
-    equivalent — they emerge as ``IAM_USER`` and require an explicit
-    ``iam_user_overrides`` entry in the IdentityResolver.
+    Order matters; the first matching rule wins. The federated shapes
+    (SAML-provider:user and sts:assumed-role) MUST be checked before the plain
+    IAM role/user rules because they also contain ``:role/`` or ``:user/``
+    segments — see e.g. AWS Identity Center, which emits both shapes for the
+    same human depending on which LF code path captured the grant.
     """
+    # --- SAML-federated user (LF "SAML user" shape) -----------------------
+    # arn:aws:iam::<account>:saml-provider/<provider>:user/<saml-name-id>
+    # For AWS Identity Center the trailing NameID is the user's email/UPN,
+    # which matches the UC SCIM user directly — no override needed. Non-email
+    # NameIDs are unusual (custom IdPs); we treat the full ARN as the
+    # iam_user_overrides lookup key so operators can disambiguate per-provider.
+    if (
+        identifier.startswith("arn:aws:iam:")
+        and ":saml-provider/" in identifier
+        and ":user/" in identifier
+    ):
+        name_id = identifier.split(":user/", 1)[1]
+        if "@" in name_id:
+            return Principal(PrincipalKind.IDP_USER, name_id)
+        return Principal(PrincipalKind.IAM_USER, identifier)
+
+    # --- STS assumed-role session (the other LF shape for SSO-fed grants) -
+    # arn:aws:sts::<account>:assumed-role/<role-name>/<session-name>
+    # AWS Identity Center sets the session name to the user's email/UPN.
+    # When the session name is an email we surface the human (matches SCIM);
+    # otherwise we fall back to the role name and let iam_role_overrides
+    # map it to a group, same as a plain IAM role grant.
+    if identifier.startswith("arn:aws:sts:") and ":assumed-role/" in identifier:
+        suffix = identifier.split(":assumed-role/", 1)[1]
+        role_name, _, session_name = suffix.partition("/")
+        if "@" in session_name:
+            return Principal(PrincipalKind.IDP_USER, session_name)
+        return Principal(PrincipalKind.IAM_ROLE, role_name)
+
     if identifier.startswith("arn:aws:iam:") and ":role/" in identifier:
         role_name = identifier.split(":role/", 1)[1]
         return Principal(PrincipalKind.IAM_ROLE, role_name)

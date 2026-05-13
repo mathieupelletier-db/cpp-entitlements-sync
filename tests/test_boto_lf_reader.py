@@ -47,6 +47,57 @@ def test_parser_recognises_iam_user_arn_without_path():
     assert p == Principal(PrincipalKind.IAM_USER, "jane.doe")
 
 
+def test_parser_recognises_saml_federated_user_with_email_nameid():
+    """LF "SAML user" shape, AWS Identity Center happy path: the NameID is the
+    user's email/UPN, which matches the UC SCIM user directly."""
+    p = default_principal_parser(
+        "arn:aws:iam::332745928618:saml-provider/"
+        "AWSReservedSSO_databricks-sandbox-admin_cb35520eb3ee11c2:"
+        "user/ron.guerrero@databricks.com"
+    )
+    assert p == Principal(PrincipalKind.IDP_USER, "ron.guerrero@databricks.com")
+
+
+def test_parser_saml_federated_user_branch_wins_over_iam_user_branch():
+    """Regression guard: the SAML branch must be ordered before the IAM-user
+    branch — both match ``:user/`` and the IAM-user branch would otherwise
+    swallow the SAML shape and return ``IAM_USER(<nameid>)``, breaking the
+    happy-path resolution."""
+    p = default_principal_parser(
+        "arn:aws:iam::123:saml-provider/Okta:user/alice@example.com"
+    )
+    assert p.kind is PrincipalKind.IDP_USER
+    assert p.identifier == "alice@example.com"
+
+
+def test_parser_saml_federated_user_with_non_email_nameid_falls_back_to_override():
+    """Custom IdP that uses a non-email NameID — we can't auto-resolve, so we
+    surface the full ARN as the iam_user_overrides lookup key. The full ARN
+    (not just the trailing segment) preserves per-provider disambiguation."""
+    arn = "arn:aws:iam::123:saml-provider/CustomIdP:user/EMPL-12345"
+    p = default_principal_parser(arn)
+    assert p == Principal(PrincipalKind.IAM_USER, arn)
+
+
+def test_parser_recognises_sts_assumed_role_with_email_session():
+    """AWS Identity Center SSO assume-role: session name is the user's email."""
+    p = default_principal_parser(
+        "arn:aws:sts::332745928618:assumed-role/"
+        "AWSReservedSSO_databricks-sandbox-admin_cb35520eb3ee11c2/"
+        "ron.guerrero@databricks.com"
+    )
+    assert p == Principal(PrincipalKind.IDP_USER, "ron.guerrero@databricks.com")
+
+
+def test_parser_recognises_sts_assumed_role_with_non_email_session():
+    """Service / pipeline session — fall back to the role name and let
+    iam_role_overrides map it like a plain IAM role grant."""
+    p = default_principal_parser(
+        "arn:aws:sts::123:assumed-role/DataPipelineService/i-0abc1234ef567890a"
+    )
+    assert p == Principal(PrincipalKind.IAM_ROLE, "DataPipelineService")
+
+
 def test_parser_recognises_idc_group_arn():
     p = default_principal_parser(
         "arn:aws:identitystore::123:group/d-1234abcd/12345678-1234-1234-1234-123456789012"

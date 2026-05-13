@@ -6,6 +6,7 @@ LF → UC entitlements sync engine. CPP POC (Plan 1: engine core).
 
 - [`docs/architecture.md`](docs/architecture.md) — high-level architecture diagram, two paths (event-driven + reconciler), component-to-file map.
 - [`docs/mappings.md`](docs/mappings.md) — AWS Glue / Lake Formation → Unity Catalog object mapping reference (structural, principals, privileges, tags, filters, sharing).
+- [`docs/auth.md`](docs/auth.md) — how to log in to AWS (SSO) and Databricks (CLI) for local runs, plus the service-principal + IAM role setup the scheduled Job uses.
 - Design spec lives in the parent `asq` repo:
   `docs/superpowers/specs/2026-05-06-glue-uc-entitlements-sync-design.md`.
 
@@ -16,6 +17,9 @@ uv venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
 pytest
 ```
+
+Before running `scripts/run_sync.py` against real clouds, log in to both
+AWS and Databricks — see [`docs/auth.md`](docs/auth.md).
 
 ## Scripts
 

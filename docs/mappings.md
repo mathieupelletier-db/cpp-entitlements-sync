@@ -27,16 +27,43 @@ Conventions:
 
 ## 2. Principals (LF DataLakePrincipal ↔ UC identity)
 
-Handled by `entitlements_sync.identity.IdentityResolver`.
+Parsing of the LF `DataLakePrincipalIdentifier` string is in
+`entitlements_sync.boto_lf_reader.default_principal_parser`; the resulting
+`Principal` is then mapped to a UC identity by
+`entitlements_sync.identity.IdentityResolver`.
 
 | LF principal                              | UC equivalent                  | Status | Resolution rule |
 |---|---|---|---|
 | IAM Identity Center **group** (preferred) | UC account-level group         | Clean  | Match by display name (SCIM-fed from same IdP). Happy path. |
 | IAM Identity Center **user**              | UC account-level user          | Clean  | Match by email / UPN. |
-| Federated SAML user                       | UC user                        | Clean  | Email / UPN match. |
-| IAM **role**                              | (no direct equivalent)         | Gap    | Needs explicit row in `sync_config.identity_mapping`. Common edge case. |
-| IAM **user** (non-federated)              | (no direct equivalent)         | Gap    | Same — override table or skip. |
+| Federated SAML user                       | UC user                        | Clean  | Email / UPN match — see "ARN shapes" below. |
+| IAM **role**                              | (no direct equivalent)         | Gap    | Needs explicit row in `identity.iam_role_overrides`. Common edge case. |
+| IAM **user** (non-federated)              | (no direct equivalent)         | Gap    | Same — `identity.iam_user_overrides` or skip. |
 | LF "data lake admin"                      | UC metastore admin + catalog owner | Lossy | Coarse mapping; usually manual, not auto-synced. |
+
+### LF principal ARN shapes the parser recognizes
+
+LF stores grants under several distinct ARN shapes depending on how the grant
+was issued and which AWS service captured it. The parser checks the federated
+shapes (rows 1–2 below) **before** the plain IAM role/user shapes (rows 3–4),
+because the federated shapes also contain `:role/` or `:user/` segments and
+would otherwise be misclassified.
+
+| LF ARN shape | Example | Parsed as | Lookup key |
+|---|---|---|---|
+| `arn:aws:iam::<acct>:saml-provider/<provider>:user/<nameid>` | `arn:aws:iam::332745928618:saml-provider/AWSReservedSSO_databricks-sandbox-admin_<hash>:user/ron.guerrero@databricks.com` | `IDP_USER(<nameid>)` if NameID contains `@`; otherwise `IAM_USER(<full ARN>)` | UC SCIM email match (no override); full ARN in `iam_user_overrides` for non-email NameIDs |
+| `arn:aws:sts::<acct>:assumed-role/<role>/<session>` | `arn:aws:sts::332745928618:assumed-role/AWSReservedSSO_databricks-sandbox-admin_<hash>/ron.guerrero@databricks.com` | `IDP_USER(<session>)` if session name contains `@`; otherwise `IAM_ROLE(<role>)` | UC SCIM email match (no override); role name in `iam_role_overrides` for service sessions |
+| `arn:aws:iam::<acct>:role/<role>` | `arn:aws:iam::123:role/AnalystRole` | `IAM_ROLE(<role>)` | `<role>` in `iam_role_overrides` |
+| `arn:aws:iam::<acct>:user/<path/name>` | `arn:aws:iam::123:user/demo/pension-ron` | `IAM_USER(<path/name>)` | `<path/name>` in `iam_user_overrides` |
+| `arn:aws:identitystore::<acct>:group/<id>/<group-id>` or `arn:aws:sso:…` | `arn:aws:identitystore::123:group/d-x/12345…` | `IDP_GROUP(<group-id>)` | `group_renames` to map to UC display name |
+| Bare email (no ARN) | `alice@cpp.example` | `IDP_USER(alice@cpp.example)` | Direct UC SCIM match |
+| Bare name (no ARN, no `@`) | `ANALYSTS_CAD` | `IDP_GROUP(ANALYSTS_CAD)` | `group_renames` if display names diverge |
+
+**The two SSO shapes (rows 1–2) are the ones to watch.** AWS Identity Center
+emits the SAML-provider:user form in some LF code paths and the
+sts:assumed-role form in others, for the *same human*. Both auto-resolve to
+`IDP_USER(email)` so the operator doesn't have to maintain duplicate override
+rows for the same person.
 
 ## 3. Permissions / privileges
 
