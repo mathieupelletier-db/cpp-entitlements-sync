@@ -1,12 +1,11 @@
 """SQL-INSERT-backed audit sink.
 
-Drop-in replacement for ``DeltaAuditSink`` that writes audit rows through a
-``SQLRunner`` (e.g., the Statement Execution API) instead of a Spark session.
-This lets the reconciler run from outside the Databricks Job runtime — most
-usefully from a laptop or any environment without pyspark.
+Writes audit rows through a ``SQLRunner`` (e.g., the Statement Execution API),
+so the reconciler can run from anywhere the Databricks SDK works — including a
+laptop — with no pyspark dependency.
 
-Schema matches ``delta_audit.AUDIT_SCHEMA_DDL`` exactly so the AI/BI dashboard
-binds to the same Delta table either way.
+The Delta-table schema is kept literal here (not factored into a separate
+module) so it's grep-able from the AI/BI dashboard query.
 """
 from __future__ import annotations
 
@@ -17,10 +16,23 @@ from typing import Any
 
 from .audit import AuditSink
 from .databricks_uc import SQLRunner
-from .delta_audit import AUDIT_SCHEMA_DDL
 from .models import AuditRow
 
 log = logging.getLogger(__name__)
+
+
+# Mirrors AuditRow. The AI/BI Drift Dashboard binds against this schema.
+AUDIT_SCHEMA_DDL = (
+    "ts TIMESTAMP, "
+    "source_event_id STRING, "
+    "op_kind STRING, "
+    "resource_qualified_name STRING, "
+    "principal_identifier STRING, "
+    "status STRING, "
+    "latency_ms BIGINT, "
+    "error STRING, "
+    "notes STRING"
+)
 
 
 # Order MUST match the column order in AUDIT_SCHEMA_DDL.

@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from entitlements_sync.delta_audit import AUDIT_SCHEMA_DDL
+from entitlements_sync.sql_audit import AUDIT_SCHEMA_DDL
 from entitlements_sync.models import AuditRow, SyncOpKind
 from entitlements_sync.sql_audit import SQLAuditSink
 

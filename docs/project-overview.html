@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entitlements Sync &mdash; LF to Unity Catalog</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#x1F510;</text></svg>">
+</head>
+<body>
+<div id="app"></div>
+<script>
+(() => {
+  const DB = {
+    orange: '#FF3621', orangeLight: '#FF6B4A', orangeDim: 'rgba(255,54,33,0.12)',
+    teal: '#1B3139', tealDark: '#0F1F25', tealDeep: '#080F14',
+    tealLight: '#2A4D5A', tealMid: '#1E3A44',
+    w: '#FFFFFF', w90: 'rgba(255,255,255,0.9)', w80: 'rgba(255,255,255,0.8)',
+    w60: 'rgba(255,255,255,0.6)', w45: 'rgba(255,255,255,0.45)',
+    w30: 'rgba(255,255,255,0.3)', w20: 'rgba(255,255,255,0.2)',
+    w10: 'rgba(255,255,255,0.1)', w05: 'rgba(255,255,255,0.04)',
+  };
+
+  const slides = [
+
+    // ─────────────────────────────── 1. COVER
+    {
+      id: 'cover',
+      bg: `radial-gradient(ellipse at 50% 35%, #162A34 0%, ${DB.tealDeep} 70%)`,
+      accent: DB.orange,
+      body: `
+        <svg class="amp-logo" width="92" height="74" viewBox="0 0 120 90" fill="none">
+          <rect x="6" y="14" width="44" height="60" rx="6" stroke="${DB.orange}" stroke-width="4" fill="none"/>
+          <rect x="70" y="14" width="44" height="60" rx="6" stroke="${DB.orange}" stroke-width="4" fill="none"/>
+          <path d="M52 44 L68 44 M62 38 L68 44 L62 50" stroke="${DB.orangeLight}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="18" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+          <circle cx="28" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+          <circle cx="38" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+          <circle cx="82" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+          <circle cx="92" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+          <circle cx="102" cy="28" r="2.5" fill="${DB.orangeLight}"/>
+        </svg>
+        <div class="amp-wordmark A" style="--d:0.05s">ENTITLEMENTS SYNC</div>
+        <h1 class="A" style="--d:0.12s">Lake Formation,<br>Mirrored to Unity Catalog</h1>
+        <p class="amp-tagline A" style="--d:0.2s">CPP POC &mdash; May 2026</p>
+        <div class="amp-pills A" style="--d:0.3s">
+          <span class="amp-pill amp-pill-orange">Reconciler-only</span>
+          <span class="amp-pill amp-pill-teal">LF stays source of truth</span>
+          <span class="amp-pill amp-pill-gold">Every change audited</span>
+        </div>
+        <p class="amp-sub A" style="--d:0.4s">One Databricks Job &mdash; six-hour cycles &mdash; full-state diff, guaranteed convergence</p>
+      `,
+    },
+
+    // ─────────────────────────────── 2. THE PROBLEM
+    {
+      id: 'gap',
+      bg: `linear-gradient(160deg, #060D12, #0D1E27 40%, #132C38)`,
+      accent: DB.orange,
+      body: `
+        <h1>Why You Can&rsquo;t Just <span style="color:${DB.orange}">Dual-Write</span> Entitlements</h1>
+        <h2>Three gaps emerge the moment you give two governance planes the same data</h2>
+        <div class="gap-grid">
+          <div class="gap-card A" style="--d:0.08s">
+            <div class="gap-ico gap-ico-rose">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="1.6" stroke-linecap="round"><path d="M12 2v20M5 9l7-7 7 7M5 15l7 7 7-7"/></svg>
+            </div>
+            <div class="gap-num">01</div>
+            <strong>Drift</strong>
+            <p>Manual UC edits diverge from LF the moment someone runs a one-off GRANT. There&rsquo;s no continuous reconciliation, no detector, no replay &mdash; just silent drift accumulating between cycles.</p>
+            <div class="gap-quote">&ldquo;Who granted MODIFY on this table last Tuesday?&rdquo;</div>
+          </div>
+          <div class="gap-card A" style="--d:0.18s">
+            <div class="gap-ico gap-ico-amber">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.6" stroke-linecap="round"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><circle cx="17" cy="9" r="3"/></svg>
+            </div>
+            <div class="gap-num">02</div>
+            <strong>Identity Mismatch</strong>
+            <p>LF speaks in IAM roles, SAML federated users, and IDC group ARNs. UC speaks in SCIM groups, users, and emails. Same human, three different shapes &mdash; and only one of them works on each side.</p>
+            <div class="gap-quote">&ldquo;ron.guerrero@... shows up as four different ARNs in LF&rdquo;</div>
+          </div>
+          <div class="gap-card A" style="--d:0.28s">
+            <div class="gap-ico gap-ico-cyan">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            </div>
+            <div class="gap-num">03</div>
+            <strong>No Audit Trail</strong>
+            <p>Who changed what, when, and why &mdash; answered nowhere. Compliance reviewers can&rsquo;t reconstruct the chain, and the field engineering team can&rsquo;t see drift trends without a system of record for the sync itself.</p>
+            <div class="gap-quote">&ldquo;Show me every grant LF added in the last 30 days&rdquo;</div>
+          </div>
+        </div>
+        <div class="gap-footer A" style="--d:0.4s">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${DB.orangeLight}" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span>One engine closes all three &mdash; LF is the source, UC is the mirror, every op is recorded</span>
+        </div>
+      `,
+    },
+
+    // ─────────────────────────────── 3. THE APPROACH
+    {
+      id: 'principle',
+      bg: `radial-gradient(ellipse at 50% 30%, #162A34 0%, ${DB.tealDeep} 70%)`,
+      accent: DB.orange,
+      body: `
+        <h1>Reconciler-Only by <span style="color:${DB.orange}">Design</span></h1>
+        <h2>LF stays the system of record. UC is downstream, eventually consistent, always converging.</h2>
+        <div class="pr-arch A" style="--d:0.1s">
+          <div class="pr-box pr-box-teal">
+            <div class="pr-box-label">Source of truth</div>
+            <div class="pr-box-inner">
+              <span class="pr-chip">Lake Formation</span>
+              <span class="pr-chip">Glue Catalog</span>
+            </div>
+          </div>
+          <div class="pr-arrow-h">
+            <svg width="40" height="22" viewBox="0 0 40 22" fill="none" stroke="${DB.orangeLight}" stroke-width="2" stroke-linecap="round"><path d="M3 11h32M28 5l8 6-8 6"/></svg>
+          </div>
+          <div class="pr-box pr-box-orange">
+            <div class="pr-box-label">Reconciler engine</div>
+            <div class="pr-box-inner">
+              <span class="pr-chip pr-chip-orange">One Databricks Job</span>
+              <span class="pr-chip pr-chip-orange">6h cycle</span>
+            </div>
+          </div>
+          <div class="pr-arrow-h">
+            <svg width="40" height="22" viewBox="0 0 40 22" fill="none" stroke="${DB.orangeLight}" stroke-width="2" stroke-linecap="round"><path d="M3 11h32M28 5l8 6-8 6"/></svg>
+          </div>
+          <div class="pr-box pr-box-teal">
+            <div class="pr-box-label">Mirror</div>
+            <div class="pr-box-inner">
+              <span class="pr-chip">Unity Catalog</span>
+              <span class="pr-chip">Audit Delta</span>
+            </div>
+          </div>
+        </div>
+        <div class="pr-principles">
+          <div class="pr-p A" style="--d:0.22s">
+            <div class="pr-p-ico pr-ico-orange">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${DB.orangeLight}" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v6M12 17v6M4.2 4.2l4.3 4.3M15.5 15.5l4.3 4.3M1 12h6M17 12h6M4.2 19.8l4.3-4.3M15.5 8.5l4.3-4.3"/></svg>
+            </div>
+            <div>
+              <strong>One moving part</strong>
+              <p>No Lambda, no EventBridge, no SQS DLQ to monitor. One Job, one schedule, one log.</p>
+            </div>
+          </div>
+          <div class="pr-p A" style="--d:0.32s">
+            <div class="pr-p-ico pr-ico-cyan">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.7" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <div>
+              <strong>Full-state diff</strong>
+              <p>Read all of LF, read all of UC, compute the delta. No class of &ldquo;missed event&rdquo; bugs.</p>
+            </div>
+          </div>
+          <div class="pr-p A" style="--d:0.42s">
+            <div class="pr-p-ico pr-ico-gold">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.7" stroke-linecap="round"><path d="M3 12c0-5 4-9 9-9s9 4 9 9-4 9-9 9"/><path d="M3 12l4-4M3 12l4 4"/></svg>
+            </div>
+            <div>
+              <strong>Convergent</strong>
+              <p>Manual UC edits on managed objects get reverted next cycle. Drift gets corrected, not accumulated.</p>
+            </div>
+          </div>
+        </div>
+      `,
+    },
+
+    // ─────────────────────────────── 4. ARCHITECTURE
+    {
+      id: 'arch',
+      bg: `linear-gradient(160deg, #060D12, #0D1E27 40%, #132C38)`,
+      accent: '#22D3EE',
+      body: `
+        <h1>One Cross-Cloud <span style="color:#22D3EE">Hand-off</span></h1>
+        <h2>The reader is the only piece that crosses the boundary &mdash; everything downstream stays in Databricks</h2>
+        <div class="arch-diagram A">
+          <div class="arch-layer arch-layer-top">
+            <div class="arch-layer-label">AWS &mdash; Lake Formation account</div>
+            <div class="arch-layer-chips">
+              <div class="arch-chip arch-chip-teal">list_lf_tags</div>
+              <div class="arch-chip arch-chip-teal">get_resource_lf_tags</div>
+              <div class="arch-chip arch-chip-teal">list_permissions</div>
+              <div class="arch-chip arch-chip-teal">glue.get_tables</div>
+            </div>
+          </div>
+          <div class="arch-down">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${DB.w30}" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          </div>
+          <div class="arch-layer arch-layer-bridge">
+            <div class="arch-bridge-text">Reconciler &mdash; Databricks Job, serverless SQL warehouse</div>
+            <div class="arch-bridge-planes">
+              <span class="arch-plane arch-plane-ctrl">BotoLFReader</span>
+              <span class="arch-plane-sep">&middot;</span>
+              <span class="arch-plane arch-plane-ctrl">target_builder</span>
+              <span class="arch-plane-sep">&middot;</span>
+              <span class="arch-plane arch-plane-ctrl">IdentityResolver</span>
+              <span class="arch-plane-sep">&middot;</span>
+              <span class="arch-plane arch-plane-data">Reconciler.diff</span>
+              <span class="arch-plane-sep">&middot;</span>
+              <span class="arch-plane arch-plane-data">DatabricksUCClient</span>
+            </div>
+          </div>
+          <div class="arch-down">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${DB.w30}" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+          </div>
+          <div class="arch-layer arch-layer-db">
+            <div class="arch-layer-label arch-db-label">Databricks workspace</div>
+            <div class="arch-db-inner">
+              <div class="arch-db-item">Unity Catalog<small>ALTER &middot; GRANT &middot; REVOKE</small></div>
+              <div class="arch-db-item arch-db-gold">sync_audit.events<small>one Delta row per op</small></div>
+              <div class="arch-db-item">AI/BI Drift Dashboard<small>reads the audit table</small></div>
+            </div>
+          </div>
+        </div>
+      `,
+    },
+
+    // ─────────────────────────────── 5. WHAT GETS SYNCED
+    {
+      id: 'catalog',
+      bg: `radial-gradient(ellipse at 60% 30%, #162A34 0%, ${DB.tealDeep} 70%)`,
+      accent: '#F59E0B',
+      body: `
+        <h1>What the Engine <span style="color:#F59E0B">Mirrors</span></h1>
+        <h2>Six surfaces, five fully live, one stubbed pending UC ABAC REST integration</h2>
+        <div class="cat-grid">
+          <div class="cat-card A" style="--d:0.06s">
+            <span class="cat-phase cat-ph1">MVP</span>
+            <div class="cat-ico cat-ico-rose">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="1.7" stroke-linecap="round"><path d="M20 12V8a2 2 0 0 0-2-2h-4l-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h6"/><circle cx="17" cy="17" r="3"/><path d="M19.5 19.5L22 22"/></svg>
+            </div>
+            <strong>LF-Tag dictionary</strong>
+            <p>Keys + allowed values mirrored to UC tag keys, with optional namespace remap (e.g. <code>classification</code> &rarr; <code>data_classification</code>).</p>
+          </div>
+          <div class="cat-card A" style="--d:0.12s">
+            <span class="cat-phase cat-ph1">MVP</span>
+            <div class="cat-ico cat-ico-cyan">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.7" stroke-linecap="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="1.5" fill="#22D3EE"/></svg>
+            </div>
+            <strong>Object tags</strong>
+            <p><code>ALTER TABLE/SCHEMA/CATALOG &hellip; SET TAGS</code> for every LF-tagged resource, idempotent, namespace-remapped.</p>
+          </div>
+          <div class="cat-card A" style="--d:0.18s">
+            <span class="cat-phase cat-ph1">MVP</span>
+            <div class="cat-ico cat-ico-orange">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${DB.orangeLight}" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a6 6 0 016-6h4a6 6 0 016 6v2"/></svg>
+            </div>
+            <strong>Identity resolution</strong>
+            <p>IDC groups, SAML federated users, STS sessions, IAM roles &rarr; UC SCIM identities. Overrides for service roles and IAM users.</p>
+          </div>
+          <div class="cat-card A" style="--d:0.24s">
+            <span class="cat-phase cat-ph1">MVP</span>
+            <div class="cat-ico cat-ico-gold">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.7" stroke-linecap="round"><path d="M9 12l2 2 4-4M12 2L4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-4z"/></svg>
+            </div>
+            <strong>Grants</strong>
+            <p><code>SELECT</code>, <code>MODIFY</code>, <code>USE CATALOG/SCHEMA</code> chains. Level-aware LF&rarr;UC privilege table; unsupported verbs audited and skipped.</p>
+          </div>
+          <div class="cat-card A" style="--d:0.3s">
+            <span class="cat-phase cat-ph2">Preview</span>
+            <div class="cat-ico cat-ico-purple">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </div>
+            <strong>ABAC policies</strong>
+            <p>One UC policy per LF-Tag key. Orchestration is complete &mdash; REST integration stubbed in <code>LoggingABACPolicyAPI</code> until UC ABAC GAs.</p>
+          </div>
+          <div class="cat-card A" style="--d:0.36s">
+            <span class="cat-phase cat-ph1">MVP</span>
+            <div class="cat-ico cat-ico-green">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64FFDA" stroke-width="1.7" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 2 4-6"/></svg>
+            </div>
+            <strong>Audit trail</strong>
+            <p>One Delta row per UC op: timestamp, op kind, principal, resource, status, latency, notes. Drives the AI/BI Drift Dashboard.</p>
+          </div>
+        </div>
+      `,
+    },
+
+    // ─────────────────────────────── 6. PHASING / ROADMAP
+    {
+      id: 'phasing',
+      bg: `linear-gradient(160deg, #060D12, #0D1E27 40%, #132C38)`,
+      accent: '#22D3EE',
+      body: `
+        <h1>What&rsquo;s Live, What&rsquo;s <span style="color:#22D3EE">Next</span></h1>
+        <h2>POC ships today &mdash; three honest tranches to a production-ready engine</h2>
+        <div class="ph-timeline">
+          <div class="ph-col A" style="--d:0.08s">
+            <div class="ph-hdr ph-hdr-1">
+              <div class="ph-hdr-tag">Phase 1</div>
+              <div class="ph-hdr-dates">Today (POC)</div>
+              <div class="ph-hdr-title">Reconciler MVP</div>
+            </div>
+            <div class="ph-services">
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-rose">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FB7185" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+                </div>
+                <div><strong>Tags &middot; Grants &middot; Identity</strong><p>Mirrored via Statement Execution API</p></div>
+              </div>
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-orange">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="${DB.orangeLight}" stroke-width="1.8" stroke-linecap="round"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path d="M12 8v4l3 2"/></svg>
+                </div>
+                <div><strong>Audit Delta sink</strong><p>Every op recorded with notes &amp; latency</p></div>
+              </div>
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-gold">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round"><path d="M3 3v18h18M7 14l4-4 4 2 4-6"/></svg>
+                </div>
+                <div><strong>AI/BI Drift Dashboard</strong><p>Reads <code>sync_audit.events</code></p></div>
+              </div>
+            </div>
+            <div class="ph-kpi">
+              <strong>Today</strong>
+              <p>~20 tables, 3 LF-Tags, 3 IdP groups in scope</p>
+            </div>
+          </div>
+          <div class="ph-divider A" style="--d:0.14s">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${DB.w30}" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </div>
+          <div class="ph-col A" style="--d:0.2s">
+            <div class="ph-hdr ph-hdr-2">
+              <div class="ph-hdr-tag">Phase 2</div>
+              <div class="ph-hdr-dates">Next &mdash; H2 2026</div>
+              <div class="ph-hdr-title">Production-grade</div>
+            </div>
+            <div class="ph-services">
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-purple">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                </div>
+                <div><strong>ABAC REST integration</strong><p>Replace the logging stub with the real API</p></div>
+              </div>
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-cyan2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.8" stroke-linecap="round"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7"/><path d="M3 7l9-4 9 4M3 7l9 4 9-4"/></svg>
+                </div>
+                <div><strong>Row filters &amp; column masks</strong><p>Map LF data filters to UC functions</p></div>
+              </div>
+              <div class="ph-svc">
+                <div class="ph-svc-ico ph-ico-amber">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+                </div>
+                <div><strong>Cross-account LF reads</strong><p>Assume-role for catalogs in another AWS account</p></div>
+              </div>
+            </div>
+            <div class="ph-kpi">
+              <strong>Goal</strong>
+              <p>Full LF surface, multi-account scope</p>
+            </div>
+          </div>
+          <div class="ph-divider A" style="--d:0.26s">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${DB.w30}" stroke-width="1.8" stroke-linecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </div>
+          <div class="ph-col A" style="--d:0.32s">
+            <div class="ph-hdr ph-hdr-3">
+              <div class="ph-hdr-tag">Phase 3</div>
+              <div class="ph-hdr-dates">Horizon</div>
+              <div class="ph-hdr-title">Optional extensions</div>
+            </div>
+            <div class="ph-services">
+              <div class="ph-svc ph-svc-stretch">
+                <div class="ph-svc-ico ph-ico-cyan">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22D3EE" stroke-width="1.8" stroke-linecap="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <div><strong>Sub-minute SLA</strong><p>Re-enable preserved CloudTrail event path</p></div>
+              </div>
+              <div class="ph-svc ph-svc-stretch">
+                <div class="ph-svc-ico ph-ico-green">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64FFDA" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+                </div>
+                <div><strong>Cross-account sharing</strong><p>LF RAM &rarr; UC Delta Sharing</p></div>
+              </div>
+              <div class="ph-svc ph-svc-stretch">
+                <div class="ph-svc-ico ph-ico-purple">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.8" stroke-linecap="round"><path d="M3 21l3-3v-7a8 8 0 0116 0v7l3 3"/><path d="M9 21h6"/></svg>
+                </div>
+                <div><strong>Self-serve overrides UI</strong><p>SAs add identity mappings from a web app</p></div>
+              </div>
+            </div>
+            <div class="ph-kpi">
+              <strong>When &mdash; if &mdash; a customer asks</strong>
+              <p>Code preserved; not on the critical path</p>
+            </div>
+          </div>
+        </div>
+      `,
+    },
+
+  ];
+
+  let cur = 0, moving = false;
+
+  const s = document.createElement('style');
+  s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&display=swap');
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'DM Sans',system-ui,sans-serif;overflow:hidden;height:100vh;width:100vw;cursor:pointer;-webkit-font-smoothing:antialiased;background:${DB.tealDeep}}
+    #app{position:relative;width:100vw;height:100vh;overflow:hidden}
+    .sl{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:28px 40px;opacity:0;transform:translateY(36px) scale(.97);transition:opacity .5s cubic-bezier(.4,0,.2,1),transform .5s cubic-bezier(.4,0,.2,1);pointer-events:none;z-index:0;overflow-y:auto}
+    .sl.on{opacity:1;transform:none;pointer-events:auto;z-index:2}
+    .sl.eu{opacity:0;transform:translateY(-50px) scale(.96);z-index:1}
+    .sl.ed{opacity:0;transform:translateY(50px) scale(.96);z-index:1}
+    .sl-in{max-width:1260px;width:100%;text-align:center;display:flex;flex-direction:column;align-items:center}
+    .sl h1{font-size:clamp(1.89rem,4.3vw,2.97rem);font-weight:800;color:#fff;letter-spacing:-.03em;line-height:1.1;margin-bottom:6px;flex-shrink:0}
+    .sl h2{font-size:clamp(1.08rem,2vw,1.35rem);font-weight:400;color:${DB.w45};margin-bottom:18px;line-height:1.5;flex-shrink:0}
+    code{font-family:monospace;font-size:.95em;background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;color:${DB.w80}}
+    .pbar{position:fixed;top:0;left:0;height:3px;background:${DB.orange};transition:width .5s cubic-bezier(.4,0,.2,1);z-index:100;box-shadow:0 0 12px ${DB.orange}}
+    .dots{position:fixed;right:14px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:100}
+    .dot{width:6px;height:6px;border-radius:50%;background:${DB.w20};cursor:pointer;transition:all .3s;border:0;padding:0}
+    .dot:hover{background:${DB.w45};transform:scale(1.3)}
+    .dot.on{background:var(--ac,${DB.orange});transform:scale(1.6);box-shadow:0 0 8px var(--ac)}
+    @keyframes fu{to{opacity:1;transform:translateY(0)}}
+    .A{opacity:0;transform:translateY(16px);animation:fu .45s ease forwards;animation-delay:var(--d,.1s)}
+    .sl.on .A{animation-play-state:running}
+
+    /* ═══ COVER ═══ */
+    .amp-logo{margin-bottom:12px;filter:drop-shadow(0 0 18px rgba(255,54,33,.3))}
+    .amp-wordmark{font-size:1.11rem;font-weight:800;letter-spacing:.32em;color:${DB.w20};margin-bottom:18px;text-transform:uppercase}
+    .amp-tagline{font-size:clamp(1.13rem,2vw,1.42rem);color:${DB.w60};margin-top:8px;margin-bottom:22px}
+    .amp-pills{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+    .amp-pill{padding:5px 16px;border-radius:20px;font-size:1.03rem;font-weight:700;letter-spacing:.03em}
+    .amp-pill-orange{background:rgba(255,54,33,.12);border:1px solid rgba(255,54,33,.3);color:${DB.orangeLight}}
+    .amp-pill-teal{background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);color:#22D3EE}
+    .amp-pill-gold{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);color:#F59E0B}
+    .amp-sub{font-size:0.97rem;color:${DB.w20};margin-top:14px;letter-spacing:.02em}
+
+    /* ═══ GAP ═══ */
+    .gap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:1040px;width:100%}
+    .gap-card{padding:20px 16px 16px;border-radius:14px;background:${DB.w05};border:1px solid ${DB.w10};text-align:left;display:flex;flex-direction:column;gap:7px;transition:all .3s}
+    .gap-card:hover{transform:translateY(-3px);border-color:${DB.w20};background:rgba(255,255,255,.06)}
+    .gap-ico{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .gap-ico-rose{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.18)}
+    .gap-ico-amber{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.15)}
+    .gap-ico-cyan{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.13)}
+    .gap-num{font-size:0.78rem;font-weight:800;letter-spacing:.08em;color:${DB.w20};text-transform:uppercase}
+    .gap-card strong{font-size:1.24rem;color:#fff;font-weight:700;line-height:1.2}
+    .gap-card p{font-size:1rem;color:${DB.w45};line-height:1.55;margin:0;flex:1}
+    .gap-quote{font-size:0.92rem;color:${DB.w30};font-style:italic;padding:7px 10px;border-radius:7px;background:${DB.w05};border-left:2px solid ${DB.w10}}
+    .gap-footer{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:16px;padding:9px 18px;border-radius:10px;background:rgba(255,54,33,.04);border:1px solid rgba(255,54,33,.1);font-size:1.03rem;color:${DB.w60}}
+
+    /* ═══ PRINCIPLE ═══ */
+    .pr-arch{display:flex;align-items:center;gap:8px;max-width:960px;width:100%;justify-content:center;margin-bottom:20px;flex-wrap:wrap}
+    .pr-box{padding:14px 16px;border-radius:13px;min-width:180px;flex:1;max-width:260px}
+    .pr-box-teal{background:rgba(42,77,90,.25);border:1px solid rgba(42,77,90,.5)}
+    .pr-box-orange{background:rgba(255,54,33,.08);border:1.5px solid rgba(255,54,33,.28)}
+    .pr-box-label{font-size:0.76rem;font-weight:800;letter-spacing:.1em;color:${DB.w20};text-transform:uppercase;margin-bottom:8px;text-align:center}
+    .pr-box-inner{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+    .pr-chip{padding:3px 8px;border-radius:5px;font-size:0.92rem;font-weight:500;color:${DB.w60};background:${DB.w05};border:1px solid ${DB.w10}}
+    .pr-chip-orange{background:rgba(255,54,33,.07);border-color:rgba(255,54,33,.18);color:${DB.orangeLight}}
+    .pr-arrow-h{flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0 4px}
+    .pr-principles{display:flex;gap:10px;max-width:860px;width:100%;justify-content:center;flex-wrap:wrap}
+    .pr-p{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:11px;background:${DB.w05};border:1px solid ${DB.w10};flex:1;min-width:200px;text-align:left}
+    .pr-p-ico{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .pr-ico-orange{background:rgba(255,54,33,.08);border:1px solid rgba(255,54,33,.15)}
+    .pr-ico-cyan{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.12)}
+    .pr-ico-gold{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.12)}
+    .pr-p strong{display:block;font-size:1.08rem;color:#fff;font-weight:700;margin-bottom:3px}
+    .pr-p p{font-size:0.94rem;color:${DB.w45};line-height:1.45;margin:0}
+
+    /* ═══ ARCHITECTURE ═══ */
+    .arch-diagram{display:flex;flex-direction:column;align-items:center;gap:3px;max-width:880px;width:100%}
+    .arch-layer{width:100%;border-radius:11px;padding:8px 12px}
+    .arch-layer-top{background:rgba(42,77,90,.2);border:1px solid rgba(42,77,90,.4)}
+    .arch-layer-bridge{background:rgba(255,54,33,.06);border:1.5px solid rgba(255,54,33,.22);padding:10px 16px}
+    .arch-layer-db{background:rgba(42,77,90,.14);border:1px solid rgba(42,77,90,.32);padding:10px 12px}
+    .arch-layer-label{font-size:0.76rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${DB.w20};margin-bottom:6px;text-align:center}
+    .arch-db-label{color:rgba(100,220,200,.35) !important}
+    .arch-bridge-text{text-align:center;font-size:0.96rem;font-weight:700;color:${DB.orangeLight};letter-spacing:.02em}
+    .arch-bridge-planes{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:5px;font-size:0.84rem;gap:3px}
+    .arch-plane{padding:2px 8px;border-radius:4px;font-weight:600}
+    .arch-plane-ctrl{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.18);color:#22D3EE}
+    .arch-plane-data{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.18);color:#F59E0B}
+    .arch-plane-sep{color:${DB.w20}}
+    .arch-layer-chips{display:flex;flex-wrap:wrap;gap:5px;justify-content:center}
+    .arch-chip{padding:3px 10px;border-radius:5px;font-size:0.92rem;font-weight:600}
+    .arch-chip-teal{background:rgba(42,77,90,.35);border:1px solid rgba(42,77,90,.6);color:${DB.w60};font-family:monospace}
+    .arch-down{display:flex;align-items:center;justify-content:center;height:18px}
+    .arch-db-inner{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:2px}
+    .arch-db-item{padding:7px 10px;border-radius:7px;background:rgba(42,77,90,.2);border:1px solid rgba(42,77,90,.35);font-size:0.94rem;font-weight:700;color:${DB.w80};line-height:1}
+    .arch-db-item small{display:block;font-size:0.78rem;color:${DB.w30};font-weight:400;margin-top:2px}
+    .arch-db-gold{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.16)}
+    .arch-db-gold small{color:rgba(245,158,11,.45)}
+
+    /* ═══ SERVICE CATALOG ═══ */
+    .cat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:980px;width:100%}
+    .cat-card{padding:14px 12px 12px;border-radius:12px;background:${DB.w05};border:1px solid ${DB.w10};text-align:left;display:flex;flex-direction:column;gap:5px;position:relative;transition:all .3s cubic-bezier(.4,0,.2,1)}
+    .cat-card:hover{transform:translateY(-3px);border-color:${DB.w20};background:rgba(255,255,255,.05);box-shadow:0 8px 24px rgba(0,0,0,.3)}
+    .cat-phase{position:absolute;top:9px;right:9px;font-size:0.73rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+    .cat-ph1{background:rgba(255,54,33,.12);color:${DB.orangeLight};border:1px solid rgba(255,54,33,.2)}
+    .cat-ph2{background:rgba(167,139,250,.1);color:#A78BFA;border:1px solid rgba(167,139,250,.2)}
+    .cat-ico{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-bottom:1px}
+    .cat-ico-rose{background:rgba(251,113,133,.08);border:1px solid rgba(251,113,133,.18)}
+    .cat-ico-cyan{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.13)}
+    .cat-ico-orange{background:rgba(255,54,33,.08);border:1px solid rgba(255,54,33,.18)}
+    .cat-ico-gold{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.14)}
+    .cat-ico-purple{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.16)}
+    .cat-ico-green{background:rgba(100,255,218,.05);border:1px solid rgba(100,255,218,.12)}
+    .cat-card strong{font-size:1.07rem;color:#fff;font-weight:700;line-height:1.2;padding-right:60px}
+    .cat-card p{font-size:0.9rem;color:${DB.w45};line-height:1.45;margin:0}
+
+    /* ═══ PHASING ═══ */
+    .ph-timeline{display:flex;align-items:stretch;gap:0;max-width:1060px;width:100%}
+    .ph-col{flex:1;display:flex;flex-direction:column;gap:0}
+    .ph-divider{display:flex;align-items:center;justify-content:center;padding:0 6px;margin-top:50px}
+    .ph-hdr{padding:12px 14px;border-radius:12px 12px 0 0;text-align:center}
+    .ph-hdr-1{background:rgba(255,54,33,.07);border:1.5px solid rgba(255,54,33,.2);border-bottom:none}
+    .ph-hdr-2{background:rgba(34,211,238,.05);border:1.5px solid rgba(34,211,238,.14);border-bottom:none}
+    .ph-hdr-3{background:rgba(245,158,11,.05);border:1.5px solid rgba(245,158,11,.13);border-bottom:none}
+    .ph-hdr-tag{font-size:0.78rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:${DB.w20};margin-bottom:1px}
+    .ph-hdr-dates{font-size:0.92rem;color:${DB.w30};margin-bottom:3px}
+    .ph-hdr-title{font-size:1.28rem;font-weight:800;color:#fff;letter-spacing:-.02em}
+    .ph-hdr-1 .ph-hdr-title{color:${DB.orangeLight}}
+    .ph-hdr-2 .ph-hdr-title{color:#22D3EE}
+    .ph-hdr-3 .ph-hdr-title{color:#F59E0B}
+    .ph-services{flex:1;padding:10px 12px;background:${DB.w05};border:1px solid ${DB.w10};border-top:none;display:flex;flex-direction:column;gap:6px}
+    .ph-svc{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:7px;background:rgba(255,255,255,.02);border:1px solid ${DB.w05}}
+    .ph-svc-stretch{opacity:.6;border-style:dashed}
+    .ph-svc-ico{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+    .ph-ico-rose{background:rgba(251,113,133,.1);border:1px solid rgba(251,113,133,.2)}
+    .ph-ico-cyan{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.14)}
+    .ph-ico-cyan2{background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.14)}
+    .ph-ico-orange{background:rgba(255,54,33,.08);border:1px solid rgba(255,54,33,.16)}
+    .ph-ico-gold{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.13)}
+    .ph-ico-purple{background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.15)}
+    .ph-ico-green{background:rgba(100,255,218,.05);border:1px solid rgba(100,255,218,.11)}
+    .ph-ico-amber{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.13)}
+    .ph-svc strong{display:block;font-size:0.97rem;color:#fff;font-weight:700;line-height:1.2;margin-bottom:1px}
+    .ph-svc p{font-size:0.84rem;color:${DB.w30};margin:0;line-height:1.4}
+    .ph-kpi{padding:9px 12px;border-radius:0 0 11px 11px;background:rgba(255,255,255,.02);border:1px solid ${DB.w10};border-top:none}
+    .ph-kpi strong{display:block;font-size:0.78rem;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:${DB.w20};margin-bottom:2px}
+    .ph-kpi p{font-size:0.89rem;color:${DB.w45};line-height:1.4;margin:0}
+
+    @media(max-width:900px){
+      .sl{padding:20px 14px}
+      .gap-grid{grid-template-columns:1fr}
+      .cat-grid{grid-template-columns:repeat(2,1fr)}
+      .pr-arch{flex-direction:column;align-items:center}
+      .pr-arrow-h{transform:rotate(90deg)}
+      .pr-principles{flex-direction:column}
+      .ph-timeline{flex-direction:column}
+      .ph-divider{transform:rotate(90deg);margin-top:0;margin-bottom:0;height:28px}
+      .arch-db-inner{grid-template-columns:1fr 1fr}
+      .dots{display:none}
+    }
+    @media(max-width:600px){
+      .cat-grid{grid-template-columns:1fr}
+      .arch-db-inner{grid-template-columns:1fr}
+    }
+  `;
+  document.head.appendChild(s);
+
+  const app = document.getElementById('app');
+  const pbar = document.createElement('div'); pbar.className = 'pbar'; app.appendChild(pbar);
+  const dotsEl = document.createElement('div'); dotsEl.className = 'dots'; app.appendChild(dotsEl);
+
+  const els = slides.map((sl, i) => {
+    const el = document.createElement('div');
+    el.className = 'sl' + (i === 0 ? ' on' : '');
+    el.style.background = sl.bg;
+    el.innerHTML = '<div class="sl-in">' + sl.body + '</div>';
+    app.appendChild(el);
+    return el;
+  });
+
+  slides.forEach((_, i) => {
+    const d = document.createElement('button');
+    d.className = 'dot' + (i === 0 ? ' on' : '');
+    d.onclick = e => { e.stopPropagation(); go(i); };
+    dotsEl.appendChild(d);
+  });
+
+  function ui() {
+    const sl = slides[cur];
+    document.documentElement.style.setProperty('--ac', sl.accent);
+    pbar.style.width = ((cur + 1) / slides.length * 100) + '%';
+    pbar.style.background = sl.accent;
+    pbar.style.boxShadow = '0 0 12px ' + sl.accent;
+    dotsEl.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('on', i === cur));
+  }
+
+  function go(idx) {
+    if (moving || idx === cur || idx < 0 || idx >= slides.length) return;
+    moving = true;
+    const dir = idx > cur ? 'eu' : 'ed';
+    const prev = els[cur], next = els[idx];
+    prev.classList.remove('on'); prev.classList.add(dir);
+    next.querySelectorAll('.A').forEach(el => { el.style.animation = 'none'; el.offsetHeight; el.style.animation = ''; });
+    next.classList.remove('eu', 'ed'); next.classList.add('on');
+    cur = idx; ui();
+    setTimeout(() => { prev.classList.remove('eu', 'ed'); moving = false; }, 550);
+  }
+
+  ui();
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') go(cur + 1);
+    if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') go(cur - 1);
+  });
+
+  let lastWheelT = 0;
+  document.addEventListener('wheel', e => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastWheelT < 700) return;
+    if (Math.abs(e.deltaY) < 10) return;
+    lastWheelT = now;
+    go(e.deltaY > 0 ? cur + 1 : cur - 1);
+  }, { passive: false });
+
+  let touchStartY = 0;
+  document.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+  document.addEventListener('touchend', e => {
+    const dy = touchStartY - e.changedTouches[0].clientY;
+    if (Math.abs(dy) > 50) go(dy > 0 ? cur + 1 : cur - 1);
+  }, { passive: true });
+
+  app.addEventListener('click', e => {
+    if (e.target.closest('.dot')) return;
+    go(cur + 1);
+  });
+
+})();
+</script>
+</body>
+</html>

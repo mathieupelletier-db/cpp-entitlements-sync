@@ -69,7 +69,7 @@ flowchart LR
 | ABACPolicyAPI                 | `databricks_uc.LoggingABACPolicyAPI` (real REST impl is a TODO)      |
 | BotoLFReader                  | `src/entitlements_sync/boto_lf_reader.py`                            |
 | LFReader Protocol + Fake      | `src/entitlements_sync/lf_reader.py`                                 |
-| sync_audit.events Delta table | `src/entitlements_sync/delta_audit.py` (`DeltaAuditSink`)            |
+| sync_audit.events Delta table | `src/entitlements_sync/sql_audit.py` (`SQLAuditSink`)                |
 | Job entry point               | `scripts/run_sync.py`                                                |
 | AI/BI Drift Dashboard         | (dashboard JSON — separate, fed by `sync_audit.events`)              |
 
@@ -77,7 +77,7 @@ flowchart LR
 
 1. Databricks Job fires (cron schedule, e.g., every 6h).
 2. `scripts/run_sync.py` loads `config.yaml`, constructs `BotoLFReader`,
-   `DatabricksUCClient`, `DeltaAuditSink`, `IdentityResolver`.
+   `DatabricksUCClient`, `SQLAuditSink`, `IdentityResolver`.
 3. `build_target_state(reader, resolver, tag_namespace_map)` walks the
    in-scope resources, calls LF for tags + grants, resolves principals, applies
    namespace map, materializes one policy per LF-Tag key. Returns

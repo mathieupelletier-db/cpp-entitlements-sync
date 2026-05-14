@@ -1,0 +1,317 @@
+/* ============================================================
+   Databricks Brand Theme — Obsidian Slides Extended v2
+   Uses <split> layout (NOT <grid>) for Slides Extended 2.3.x
+   ============================================================ */
+
+/* ---- Fonts ---- */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap');
+
+:root {
+  --db-dark: #1B3139;
+  --db-light: #F5F3F0;
+  --db-accent: #FF3621;
+  --db-text-dark: #1B3139;
+  --db-text-light: #FFFFFF;
+  --db-text-secondary: #6B7280;
+  --db-green: #10B981;
+  --db-red: #EF4444;
+  --db-amber: #F59E0B;
+  --db-divider: #E5E7EB;
+  --db-card-radius: 12px;
+  --db-card-padding: 20px;
+}
+
+/* ---- Base Typography ---- */
+.reveal,
+.reveal h1, .reveal h2, .reveal h3, .reveal h4, .reveal h5, .reveal h6,
+.reveal p, .reveal li, .reveal td, .reveal th {
+  font-family: 'DM Sans', sans-serif;
+}
+
+.reveal h1 { font-size: 2.2em; font-weight: 700; margin-bottom: 0.3em; }
+.reveal h2 { font-size: 1.5em; font-weight: 700; margin-bottom: 0.4em; }
+.reveal h3 { font-size: 1.1em; font-weight: 700; margin-top: 0; }
+.reveal p  { font-size: 0.85em; line-height: 1.5; }
+.reveal li { font-size: 0.85em; line-height: 1.5; }
+
+/* ---- Slide Overflow Containment ---- */
+.reveal .slides > section {
+  overflow: visible !important;
+}
+
+/* ---- Print: clip overflow so slides don't bleed into each other ---- */
+@media print {
+  .reveal .slides > section {
+    overflow: hidden !important;
+  }
+}
+
+/* ---- Images inside split layouts ---- */
+.reveal split img {
+  max-height: 240px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: 4px 0;
+}
+
+/* ---- Dark Slide Text Override ---- */
+.reveal section.has-dark-background,
+.reveal section.has-dark-background h1,
+.reveal section.has-dark-background h2,
+.reveal section.has-dark-background h3,
+.reveal section.has-dark-background h4,
+.reveal section.has-dark-background h5,
+.reveal section.has-dark-background h6,
+.reveal section.has-dark-background p,
+.reveal section.has-dark-background li,
+.reveal section.has-dark-background strong,
+.reveal section.has-dark-background em,
+.reveal section.has-dark-background span,
+.reveal section.has-dark-background div,
+.reveal section.has-dark-background td,
+.reveal section.has-dark-background th,
+.reveal section.has-dark-background blockquote,
+.reveal section.has-dark-background a {
+  color: #fff;
+}
+
+/* ---- Light Slide Text Override ---- */
+/* NOTE: div and span excluded to avoid overriding component colors (db-flow-step, db-key, etc.) */
+.reveal section.has-light-background,
+.reveal section.has-light-background h1,
+.reveal section.has-light-background h2,
+.reveal section.has-light-background h3,
+.reveal section.has-light-background h4,
+.reveal section.has-light-background p,
+.reveal section.has-light-background li,
+.reveal section.has-light-background strong,
+.reveal section.has-light-background em,
+.reveal section.has-light-background td {
+  color: var(--db-text-dark);
+}
+
+/* ---- Accent Color ---- */
+.db-accent {
+  color: var(--db-accent) !important;
+}
+
+/* ---- Cards ---- */
+.db-card {
+  background: #FFFFFF;
+  border-radius: var(--db-card-radius);
+  padding: var(--db-card-padding);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  text-align: left;
+}
+.db-card-dark {
+  background: rgba(255,255,255,0.08);
+  border-radius: var(--db-card-radius);
+  padding: var(--db-card-padding);
+  border: 1px solid rgba(255,255,255,0.12);
+  text-align: left;
+}
+.db-card h3, .db-card-dark h3 {
+  margin-top: 0;
+  margin-bottom: 0.3em;
+  font-size: 1em;
+}
+.db-card p, .db-card-dark p {
+  margin: 0.3em 0;
+  font-size: 0.8em;
+}
+
+/* ---- Card inside split: fill height ---- */
+.reveal split .db-card,
+.reveal split .db-card-dark {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ---- Callout / Big Quote ---- */
+.db-callout {
+  font-size: 1.4em;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ---- Subtitle / Secondary ---- */
+.db-subtitle {
+  color: var(--db-text-secondary) !important;
+  font-size: 0.8em;
+  font-weight: 400;
+}
+
+/* ---- Tables ---- */
+.db-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7em;
+}
+.db-table th {
+  background: var(--db-dark);
+  color: var(--db-text-light);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 700;
+}
+.db-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--db-divider);
+}
+.db-table tr:nth-child(even) td {
+  background: rgba(0,0,0,0.02);
+}
+
+/* ---- Status Tags ---- */
+.db-tag-ready {
+  display: inline-block;
+  background: var(--db-green);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.db-tag-working {
+  display: inline-block;
+  background: var(--db-amber);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.db-tag-planned {
+  display: inline-block;
+  background: var(--db-text-secondary);
+  color: #fff;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.db-tag-none {
+  display: inline-block;
+  background: var(--db-divider);
+  color: var(--db-text-secondary);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 700;
+}
+
+/* ---- Key Letter Badge (AIditor) ---- */
+.db-key {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  text-align: center;
+  border-radius: 10px;
+  font-size: 1.3em;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+}
+.db-key-a { background: var(--db-accent); }
+.db-key-s { background: var(--db-amber); }
+.db-key-d { background: var(--db-green); }
+.db-key-f { background: #6366F1; }
+
+/* ---- Pipeline / Flow Arrow ---- */
+.db-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.85em;
+  flex-wrap: wrap;
+}
+.db-flow-step {
+  background: var(--db-dark);
+  color: var(--db-text-light);
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-align: center;
+}
+.db-flow-arrow {
+  color: var(--db-accent);
+  font-size: 1.3em;
+}
+
+/* ---- Icon inside cards ---- */
+.db-card .fa, .db-card .fas, .db-card .far, .db-card .fab,
+.db-card-dark .fa, .db-card-dark .fas, .db-card-dark .far {
+  font-size: 1.5em;
+  color: var(--db-accent);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* ---- Blockquote Styling ---- */
+.reveal blockquote {
+  background: rgba(255,54,33,0.06);
+  border-left: 4px solid var(--db-accent);
+  padding: 12px 20px;
+  font-style: italic;
+  border-radius: 0 8px 8px 0;
+  margin: 0.5em 0;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 0.85em;
+}
+
+/* ---- Section divider helpers ---- */
+.db-section-title {
+  font-size: 1.8em;
+  font-weight: 700;
+  margin-bottom: 0.2em;
+}
+.db-section-sub {
+  font-size: 0.9em;
+  color: rgba(255,255,255,0.55);
+  font-weight: 400;
+}
+
+/* ---- Mermaid Overrides ---- */
+.reveal .mermaid svg {
+  max-height: 480px;
+}
+
+/* ---- Fragment Override ---- */
+.reveal .fragment {
+  transition: all 0.3s ease;
+}
+
+/* ---- Slide Number ---- */
+.reveal .slide-number {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.65em;
+  color: var(--db-text-secondary);
+}
+
+/* ---- Compact list for slides ---- */
+.reveal .compact-list li {
+  font-size: 0.75em;
+  line-height: 1.4;
+  margin-bottom: 0.2em;
+}
+
+/* ---- Centered section helper ---- */
+.reveal .center-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}

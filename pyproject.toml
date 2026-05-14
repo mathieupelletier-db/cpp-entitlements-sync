@@ -14,11 +14,6 @@ dev = [
     "pytest-cov>=4.0",
     "ruff>=0.4",
 ]
-spark = [
-    # Only needed when running the DeltaAuditSink outside Databricks runtime.
-    # On Databricks Jobs, pyspark is already on the classpath.
-    "pyspark>=3.5",
-]
 
 [build-system]
 requires = ["hatchling"]

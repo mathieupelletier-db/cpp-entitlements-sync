@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import Any
 
 # Lazy imports inside main() keep --help fast and let unit tests import this
-# module without pulling in boto3 / databricks-sdk / pyspark.
+# module without pulling in boto3 / databricks-sdk.
 
 log = logging.getLogger("entitlements_sync.run_sync")
 
