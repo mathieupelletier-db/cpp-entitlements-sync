@@ -20,6 +20,23 @@ aws:
   # this is the catalog owner's account, not the Job's account.
   catalog_id: "332745928618"
 
+  # Optional: name of a Databricks UC Service Credential that the engine will
+  # resolve at runtime via WorkspaceClient.credentials.generate_temporary_
+  # service_credential(...). The returned short-lived STS creds are injected
+  # into the boto3 session used for LF + Glue reads. Set this when running on
+  # serverless Databricks compute (no instance profile possible) or to remove
+  # the need for `aws sso login` on a developer's laptop.
+  #
+  # Leave unset to fall back to boto3's default credential chain (env vars →
+  # ~/.aws/credentials → instance profile → IMDS). Useful for local dev with
+  # AWS SSO or for classic Databricks compute with an instance profile.
+  #
+  # The IAM role behind the credential needs lakeformation:{ListPermissions,
+  # GetResourceLFTags, ListLFTags} + glue:{GetTables, GetDatabases, GetTable,
+  # GetDatabase} permissions, a self-assuming trust policy, and the
+  # standard UC trust statement. See docs/auth.md.
+  service_credential_name: cpp_entitlements_sync_reader
+
   # Explicit list of LF resources to keep in sync. The reconciler does NOT
   # auto-discover — operators control scope here. Each entry is either a
   # database (table omitted) or a specific table.
@@ -43,7 +60,7 @@ databricks:
 
   # SQL warehouse ID for the Statement Execution API. A serverless SQL
   # warehouse is recommended (cold-start is fast and we only run on schedule).
-  warehouse_id: 586da169697271c9
+  warehouse_id: 9e1d8f87918b7747
 
   # Fully-qualified Delta table the sink writes audit rows to. Auto-created
   # on first write. Drives the AI/BI Drift Dashboard.

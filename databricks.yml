@@ -1,0 +1,101 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Databricks Asset Bundle for the LF -> UC entitlements sync engine.
+#
+# Deploys the wheel + config to a workspace and creates a Job that runs
+# scripts/run_sync.py on a serverless cluster on a configurable cadence.
+#
+# Quickstart:
+#
+#   databricks bundle validate --target sandbox
+#   databricks bundle deploy   --target sandbox
+#   databricks bundle run entitlements_sync_job --target sandbox
+#
+# After deploy, the Job appears at:
+#   https://<workspace>/jobs (search for "CPP entitlements sync").
+#
+# The default target ships the Job in --dry-run mode with the schedule
+# paused. Two flips to go live:
+#   1. Remove --dry-run from resources.jobs.entitlements_sync_job.tasks[0].python_wheel_task.parameters
+#   2. Change schedule.pause_status from PAUSED to UNPAUSED
+#
+# Going live also requires the workspace to have:
+#   - The UC catalog named in config/config.yaml (databricks.catalog)
+#   - A SQL warehouse with the ID in config/config.yaml (databricks.warehouse_id)
+#   - AWS credentials reachable from the Job's compute. This workspace is
+#     serverless-only, so an instance profile is not an option — register a
+#     UC Service Credential and resolve it at runtime in entitlements_sync.cli.
+# See docs/auth.md for the production wiring.
+# ─────────────────────────────────────────────────────────────────────────
+
+bundle:
+  name: cpp-entitlements-sync
+
+# Build the wheel locally at deploy time. uv is the same tool the README
+# Quickstart already prescribes; swap for `python -m build --wheel` if you
+# don't have uv.
+artifacts:
+  default_python:
+    type: whl
+    path: .
+    build: uv build --wheel
+
+# Sync the config directory into the workspace alongside the wheel so the
+# Job task can reference it via ${workspace.file_path}/config/config.yaml.
+sync:
+  include:
+    - config/**
+
+resources:
+  jobs:
+    entitlements_sync_job:
+      name: "[${bundle.target}] CPP entitlements sync"
+      description: |
+        LF → UC entitlements reconciler. See README and docs/architecture.md.
+        Runs scripts/run_sync.py (via the entitlements_sync wheel) against
+        config/config.yaml every 6h. Audit rows land in the Delta table
+        named under databricks.audit_table in the config.
+
+      tasks:
+        - task_key: reconcile
+          python_wheel_task:
+            package_name: entitlements_sync
+            entry_point: main
+            parameters:
+              - "--config"
+              - "${workspace.file_path}/config/config.yaml"
+              - "--dry-run"
+          environment_key: default
+
+      # Serverless compute environment. environment_version "2" is the current
+      # serverless compute env; bump as Databricks releases newer versions.
+      # NOTE: this workspace (fe-sandbox-serverless-sandbox-h302gy) is policy-
+      # locked to serverless-only — classic clusters with instance profiles
+      # are rejected at deploy time. For real AWS access from this job, use a
+      # UC Service Credential and inject the temporary creds in code; see
+      # docs/auth.md "AWS side".
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - ./dist/*.whl
+
+      # 6-hour cadence (00:00, 06:00, 12:00, 18:00 UTC). PAUSED on first
+      # deploy so the dry-run wiring never runs unexpectedly.
+      schedule:
+        quartz_cron_expression: "0 0 0/6 * * ?"
+        timezone_id: "UTC"
+        pause_status: PAUSED
+
+      max_concurrent_runs: 1
+
+      tags:
+        project: cpp-entitlements-sync
+        owner: mathieu_pelletier
+
+targets:
+  sandbox:
+    default: true
+    mode: development
+    workspace:
+      host: https://fe-sandbox-serverless-sandbox-h302gy.cloud.databricks.com

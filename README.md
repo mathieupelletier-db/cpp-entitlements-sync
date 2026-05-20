@@ -24,9 +24,22 @@ pytest
 Before running `scripts/run_sync.py` against real clouds, log in to both
 AWS and Databricks — see [`docs/auth.md`](docs/auth.md).
 
+## Deploying as a Databricks Job
+
+A Databricks Asset Bundle (`databricks.yml`) at the repo root packages the wheel, the config, and the Job spec. After a one-time `databricks auth login`:
+
+```bash
+export DATABRICKS_CONFIG_PROFILE=<your-workspace-profile>
+databricks bundle validate --target sandbox
+databricks bundle deploy   --target sandbox
+databricks bundle run entitlements_sync_job --target sandbox
+```
+
+The default ships with `--dry-run` and a paused schedule so the first deploy is always safe. See [`docs/auth.md`](docs/auth.md) for the full story (target customization, going from dry-run to a real reconcile, required workspace state).
+
 ## Scripts
 
-- `scripts/run_sync.py` — **production entry point** for the reconciler Job. Reads YAML/JSON config, builds the real `BotoLFReader` / `DatabricksUCClient` / `SQLAuditSink`, runs end-to-end. Run as a Databricks Job task. See [`config/config.example.yaml`](config/config.example.yaml) for a worked example.
+- `scripts/run_sync.py` — thin shim around `entitlements_sync.cli.main` for the legacy `python scripts/run_sync.py --config ...` workflow. The Databricks Job uses the wheel directly via the bundle's `python_wheel_task`. See [`config/config.example.yaml`](config/config.example.yaml) for a worked config.
 - `scripts/run_reconciler.py` — local demo with fixture data; demonstrates drift detection + correction against the in-memory client.
 - `scripts/run_local.py` — local demo of the event-path (unused in the reconciler-only design; kept for reference).
 
